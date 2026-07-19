@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lakeside Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+     LAKESIDE LIVE — waiting-room display for OptiSigns
+     Palette: maroon / brick / cream / ivory (Lakeside brand)
+     Type:    Fraunces (display) + Figtree (body/data)
+
+     LAYOUT NOTES (read before editing):
+     - .stage defines FOUR rows for FOUR children. If you add a
+       child, add a row. A missing track was what caused the
+       card to overflow and the progress bar to stretch.
+     - The card fills its track and never sets a fixed height.
+       Overlong copy is handled by fitCard() in JS, which shrinks
+       the card's local unit (--cu) instead of clipping.
+     ============================================================ */
+  :root {
+    --maroon:   #591913;   /* deep brand — headlines, dark text */
+    --brick:    #B72934;   /* brand red — primary accent        */
+    --cream:    #F4ECE0;   /* page background                   */
+    --paper:    #FFFFFF;   /* card surface                      */
+    --ink:      #591913;   /* primary text (brand maroon)       */
+    --ink-soft: #6E524A;   /* secondary text (warm taupe)       */
+    --honey:    #C6852E;   /* seasonal accent                   */
+    --clay:     #B15A34;   /* client-question accent            */
+    --slate:    #4C6C74;   /* did-you-know / weather accent      */
+    --line:     rgba(89,25,19,0.14);
+
+    /* global scaling unit. --tv is set from the ?scale= URL param
+       (default 1) so you can dial the whole display in or out on a
+       TV that overscans, without touching this file. */
+    --tv: 1;
+    --u: calc(min(1vw, 1.72vh) * var(--tv));
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%; overflow: hidden;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* faint ambient brand warmth on the cream field */
+  body::before {
+    content: "";
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(120vh 90vh at 84% -12%, rgba(183,41,52,0.08), transparent 60%),
+      radial-gradient(90vh 70vh at 6% 116%, rgba(198,133,46,0.07), transparent 60%);
+  }
+
+  /* Full-bleed layout: the card fills the screen and the identity
+     elements float on top of it. Vertical padding on the card is in
+     --u (not --cu) so the safe zone under the header stays constant
+     even when fitCard shrinks the type. */
+  .stage {
+    position: relative; z-index: 1;
+    height: 100vh;              /* fallback for older TV browsers */
+    height: 100dvh;             /* honours dynamic viewport where supported */
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: absolute; z-index: 5;
+    top: calc(3 * var(--u)); left: calc(4.5 * var(--u)); right: calc(4.5 * var(--u));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: calc(1.5 * var(--u)); }
+  .brand .logo { height: calc(6.4 * var(--u)); width: auto; display: block; }
+  .live-pill {
+    display: inline-flex; align-items: center; gap: calc(0.9*var(--u));
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em;
+    font-size: calc(1.7 * var(--u)); color: #fff;
+    background: var(--brick); border-radius: 999px;
+    padding: calc(0.7*var(--u)) calc(1.6*var(--u));
+  }
+  .live-pill .dot {
+    width: calc(1.1*var(--u)); height: calc(1.1*var(--u)); border-radius: 50%;
+    background: #fff; box-shadow: 0 0 0 0 rgba(255,255,255,0.7);
+    animation: pulse 2.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.6); }
+    70%  { box-shadow: 0 0 0 calc(1.4*var(--u)) rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  }
+
+  .head-right { display: flex; align-items: center; gap: calc(2.6 * var(--u)); }
+  .wx-chip {
+    display: flex; align-items: center; gap: calc(1.1 * var(--u));
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 999px; padding: calc(0.9*var(--u)) calc(1.8*var(--u));
+    box-shadow: 0 calc(0.3*var(--u)) calc(1*var(--u)) rgba(89,25,19,0.06);
+  }
+  .wx-chip .ico { font-size: calc(2.6 * var(--u)); }
+  .wx-chip .temp { font-size: calc(2.6 * var(--u)); font-weight: 600; color: var(--maroon); }
+  .wx-chip .place { font-size: calc(1.6*var(--u)); color: rgba(89,25,19,0.55); }
+  .clock { text-align: right; }
+  .clock .time { font-size: calc(3 * var(--u)); font-weight: 600; line-height: 1; letter-spacing: -0.01em; color: var(--maroon); }
+  .clock .date { font-size: calc(1.6 * var(--u)); color: rgba(89,25,19,0.55); margin-top: calc(0.4*var(--u)); }
+
+  /* ---------- Progress line ---------- */
+  /* Progress runs edge to edge along the very bottom of the screen. */
+  .progress {
+    position: absolute; z-index: 6;
+    left: 0; right: 0; bottom: 0;
+    height: calc(0.6*var(--u));
+    min-height: 3px;
+    background: rgba(89,25,19,0.12); overflow: hidden;
+  }
+  .progress > span { display: block; height: 100%; width: 0%; background: var(--brick); }
+  body.on-dark .progress { background: rgba(255,255,255,0.16); }
+  body.on-dark .progress > span { background: var(--honey); }
+
+  /* ---------- Card ---------- */
+  .card-wrap {
+    position: absolute; inset: 0; z-index: 1;
+    display: flex; align-items: stretch;
+  }
+  .card {
+    /* --fit is driven by fitCard(); --cu is the card's own scaling unit,
+       so shrinking --fit shrinks type and gaps together. Vertical padding
+       stays in --u so text can never creep under the floating header. */
+    --fit: 1;
+    --cu: calc(var(--u) * var(--fit));
+
+    width: 100%; height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--paper); color: var(--ink);
+    border-radius: 0; border-top: 0; box-shadow: none;
+    padding: calc(12 * var(--u)) calc(9 * var(--u)) calc(10 * var(--u));
+    display: grid; align-content: center; justify-items: center;
+    text-align: center;
+    gap: calc(2.2 * var(--cu));
+  }
+  .card.enter { animation: cardIn 0.7s cubic-bezier(.16,.84,.34,1) both; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(calc(2.2*var(--u))) scale(0.992); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: calc(1.1*var(--cu));
+    font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.14em; font-size: calc(1.9 * var(--cu));
+    color: var(--accent, var(--brick));
+  }
+  .eyebrow .dot { width: calc(1.2*var(--cu)); height: calc(1.2*var(--cu)); border-radius: 50%; background: currentColor; }
+  .eyebrow .kicker { font-size: calc(1.5*var(--cu)); letter-spacing: 0.06em; color: var(--ink-soft); font-weight: 600; }
+
+  /* One headline size for every card type except reviews. Previously
+     short titles jumped to 8 units and Q&A questions dropped to 4.4,
+     which made the rotation look like it used three different fonts. */
+  .headline {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600; line-height: 1.05; letter-spacing: -0.015em;
+    font-size: calc(6.2 * var(--cu));
+    color: var(--maroon);
+    max-width: 30ch;
+    text-wrap: balance;      /* evens out the last line on multi-line headlines */
+  }
+  .headline.short { font-size: calc(6.2 * var(--cu)); }
+
+  .body {
+    font-size: calc(3 * var(--cu)); line-height: 1.4;
+    color: var(--ink-soft); max-width: 54ch; font-weight: 500;
+  }
+
+  /* the "why we recommend it" reasoning block */
+  /* Centered layout, so the old left rule became a short centered
+     rule above the reasoning — same job, reads correctly centered. */
+  .because {
+    display: grid; gap: calc(0.9*var(--cu)); justify-items: center;
+    padding-top: calc(2.2*var(--cu));
+    margin-top: calc(0.4*var(--cu));
+    position: relative;
+  }
+  .because::before {
+    content: ""; position: absolute; top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: calc(9*var(--cu)); height: calc(0.5*var(--cu));
+    border-radius: 999px;
+    background: var(--accent, var(--brick));
+  }
+  .because .lab { font-size: calc(1.7*var(--cu)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent, var(--brick)); }
+  .because .txt { font-size: calc(3 * var(--cu)); line-height: 1.34; color: var(--maroon); font-weight: 500; max-width: 52ch; }
+
+  /* Q&A layout for common questions */
+  .qa { display: grid; gap: calc(1.8*var(--cu)); justify-items: center; }
+  .qa .q { font-family:"Fraunces",serif; font-weight:600; font-size: calc(6.2*var(--cu)); line-height:1.05; letter-spacing:-0.015em; color: var(--maroon); max-width: 30ch; text-wrap: balance; }
+  .qa .a { font-size: calc(3*var(--cu)); line-height:1.4; color: var(--ink-soft); font-weight:500; max-width: 54ch; }
+
+  /* weather card interior */
+  .wx-card { display: grid; grid-template-columns: auto auto; gap: calc(5*var(--cu)); align-items: center; justify-content: center; }
+  .wx-now { display: grid; justify-items: center; gap: calc(0.6*var(--cu)); }
+  .wx-now .big-ico { font-size: calc(13*var(--cu)); line-height: 1; }
+  .wx-now .big-temp { font-family:"Fraunces",serif; font-weight:600; font-size: calc(9*var(--cu)); line-height:1; color: var(--maroon); }
+  .wx-now .cond { font-size: calc(2.3*var(--cu)); color: var(--ink-soft); font-weight:600; text-transform: capitalize; }
+  .wx-msg { display: grid; gap: calc(1.6*var(--cu)); justify-items: center; max-width: 40ch; }
+
+  /* ---------- Review card (dark treatment) ----------
+     Reviews are the only dark card in the rotation. That contrast
+     is the whole point — an item that breaks a visual series gets
+     noticed. Don't give any other card type this styling or the
+     effect is spent. */
+  .card.dark {
+    background:
+      radial-gradient(120% 130% at 22% 0%, #6E2019 0%, var(--maroon) 55%, #3E110C 100%);
+    box-shadow: none; border-top: 0;
+  }
+  .card.dark .eyebrow { color: var(--honey); }
+  .card.dark .eyebrow .kicker { color: rgba(255,255,255,0.62); }
+
+  /* When a dark card is showing, the logo, clock, weather chip and
+     tagline are sitting on top of it — so they have to invert or they
+     disappear into the background. */
+  body.on-dark .clock .time { color: #FFF7EE; }
+  body.on-dark .clock .date { color: rgba(255,255,255,0.6); }
+  body.on-dark .tagline { color: rgba(255,255,255,0.72); }
+  body.on-dark .tagline b { color: #FFF7EE; }
+  body.on-dark .dots i { background: rgba(255,255,255,0.28); }
+  body.on-dark .dots i.on { background: var(--honey); }
+  body.on-dark .wx-chip {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.22);
+  }
+  body.on-dark .wx-chip .temp { color: #FFF7EE; }
+  body.on-dark .wx-chip .place { color: rgba(255,255,255,0.6); }
+  body.on-dark .brand .logo { filter: brightness(0) invert(1); opacity: 0.92; }
+
+  .stars {
+    display: flex; gap: calc(0.6*var(--cu));
+    font-size: calc(3.2*var(--cu)); line-height: 1;
+    color: var(--honey);
+  }
+  .review-text {
+    font-family: "Fraunces", Georgia, serif;
+    font-style: italic; font-weight: 400;
+    font-size: calc(3.9 * var(--cu)); line-height: 1.28;
+    color: #FFF7EE; max-width: 40ch;
+    text-wrap: pretty;
+  }
+  .review-by {
+    font-size: calc(2 * var(--cu)); font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: rgba(255,255,255,0.72);
+  }
+  .review-by .src { text-transform: none; letter-spacing: 0; font-weight: 500; color: rgba(255,255,255,0.5); }
+
+  /* ---------- Footer ---------- */
+  footer {
+    position: absolute; z-index: 5;
+    left: calc(4.5 * var(--u)); right: calc(4.5 * var(--u)); bottom: calc(2.6 * var(--u));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tagline { font-size: calc(1.9 * var(--u)); color: rgba(89,25,19,0.7); font-weight: 500; letter-spacing: 0.01em; }
+  .tagline b { color: var(--maroon); font-weight: 700; }
+  .dots { display: flex; gap: calc(0.9*var(--u)); }
+  .dots i { width: calc(1*var(--u)); height: calc(1*var(--u)); border-radius: 50%; background: rgba(89,25,19,0.18); transition: all .4s ease; }
+  .dots i.on { background: var(--brick); transform: scale(1.3); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card.enter { animation: none; }
+    .live-pill .dot { animation: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <header>
+      <div class="brand">
+        <img class="logo" src="logo.png" alt="Lakeside Pet Hospital" />
+        <span class="live-pill"><span class="dot"></span>Live</span>
+      </div>
+      <div class="head-right">
+        <div class="wx-chip" id="wxChip" hidden>
+          <span class="ico" id="wxChipIco">—</span>
+          <span class="temp" id="wxChipTemp">—°</span>
+          <span class="place">Santa Rosa</span>
+        </div>
+        <div class="clock">
+          <div class="time" id="clockTime">—:—</div>
+          <div class="date" id="clockDate">—</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="progress"><span id="progressBar"></span></div>
+
+    <div class="card-wrap">
+      <div class="card enter" id="card"><!-- content injected --></div>
+    </div>
+
+    <footer>
+      <div class="tagline"><b>Lakeside Pet Hospital</b> · Family-owned in Santa Rosa since 1961</div>
+      <div class="dots" id="dots"></div>
+    </footer>
+  </div>
+
+<script>
+/* ============================================================
+   LAKESIDE LIVE — content engine
+   ------------------------------------------------------------
+   HOW IT STAYS FRESH WITHOUT MANUAL WORK:
+   1. A built-in evergreen library (below) always works offline.
+   2. It also tries to load content.json (same folder). Anything
+      you put there is ADDED to the built-in items — that's the
+      file you edit to add promos, new-doctor news, blog tips, etc.
+   3. Seasonal safety tips auto-rotate by month (fireworks in
+      July, heat in Aug, foxtails in spring/summer, holiday
+      toxins in Nov/Dec, and so on) — no calendar edits needed.
+   4. Weather + pet reminders pull live from Open-Meteo (free,
+      no API key) and refresh every 15 minutes.
+   content.json is re-checked every 30 min, so edits appear on
+   the screen without ever touching the TV.
+   ============================================================ */
+
+/* ---- Optional ?scale= URL param for TV overscan -----------
+   https://lakesidelive.netlify.app/          → normal
+   https://lakesidelive.netlify.app/?scale=0.92 → everything 8% smaller
+   Clamped to a sane range so a typo can't blank the screen.  */
+(function applyScale(){
+  const p = new URLSearchParams(location.search).get("scale");
+  const n = parseFloat(p);
+  if (!isNaN(n)) {
+    document.documentElement.style.setProperty("--tv", Math.min(1.4, Math.max(0.6, n)));
+  }
+})();
+
+/* ---- Santa Rosa coordinates for weather ---- */
+const LAT = 38.4405, LON = -122.7144;
+
+/* ---- Section styling: label + accent color per type ---- */
+const SECTIONS = {
+  health:   { label: "Today's Pet Health Topic", accent: "var(--maroon)" },
+  didyou:   { label: "Did You Know?",            accent: "var(--slate)"  },
+  seasonal: { label: "Seasonal Safety",          accent: "var(--honey)"  },
+  question: { label: "You Asked, We Answer",     accent: "var(--clay)"   },
+  why:      { label: "Why We Recommend It",      accent: "var(--brick)"  },
+  update:   { label: "Hospital Update",          accent: "var(--maroon)" },
+  staff:    { label: "Meet Your Care Team",      accent: "var(--maroon)" },
+  notice:   { label: "Good to Know",             accent: "var(--clay)"   },
+  thisweek: { label: "What We're Seeing Lately", accent: "var(--honey)"  },
+  es:       { label: "En Español",               accent: "var(--slate)"  },
+  review:   { label: "What Our Clients Say",     accent: "var(--honey)"  },
+  weather:  { label: "Today's Forecast",         accent: "var(--slate)"  },
+};
+
+/* =========================================================
+   BUILT-IN EVERGREEN LIBRARY
+   Edit content.json (not this file) for ongoing changes.
+   ========================================================= */
+const LIBRARY = {
+  health: [
+    { title: "Bad breath isn't just bad breath", body: "By age three, most dogs and cats show signs of dental disease. That odor is usually bacteria under the gumline — treatable, and worth checking at your pet's next visit." },
+    { title: "A few extra pounds is a big deal", body: "Even mild excess weight strains joints and shortens lifespan. Ask us to score your pet's body condition and set a healthy target together." },
+    { title: "Pets are experts at hiding pain", body: "Cats and dogs instinctively mask illness. Subtle changes in appetite, thirst, sleep, or activity are worth a mention — early is always easier to treat." },
+    { title: "Senior pets age fast", body: "A seven-year-old dog or cat is well into middle age. Twice-yearly checkups and baseline bloodwork catch kidney, thyroid, and heart changes while they're still easy to manage." },
+    { title: "Parasites don't take a winter off here", body: "Sonoma County's mild climate means fleas, ticks, and mosquitoes stay active year-round. Consistent prevention is safer and cheaper than treating disease." },
+    { title: "Water is the cheapest medicine", body: "Especially for cats, steady hydration protects the kidneys and bladder. Fresh water, wide bowls, and a little wet food all help." },
+  ],
+  didyou: [
+    { title: "A dog's nose is a superpower", body: "Dogs smell in a world we can barely imagine — up to 100,000 times more sensitive than ours. It's why they can detect changes we never notice." },
+    { title: "A cat's purr may be healing", body: "Cats purr at frequencies around 25–150 Hz — a range associated with tissue and bone repair. They may literally be soothing themselves." },
+    { title: "Every nose is one of a kind", body: "A pet's nose print is as unique as a human fingerprint. No two are exactly alike." },
+    { title: "Cats can't taste sweetness", body: "They lack the receptor for it. That candy on the counter holds zero appeal — though plenty of other human foods are still off-limits." },
+    { title: "Dogs sweat through their paws", body: "Their main cooling system is panting. It's also why hot pavement is such a hazard in summer." },
+    { title: "The third eyelid is real", body: "Dogs and cats have a nictitating membrane — an extra eyelid that helps protect and moisten the eye." },
+  ],
+  question: [
+    { q: "How often does my pet need a checkup?", a: "Once a year for healthy adults, and twice a year for seniors or pets managing a condition. Regular visits catch problems before they become emergencies." },
+    { q: "Is bad breath normal in pets?", a: "It usually isn't — it's most often a sign of dental disease. If you're noticing it, it's worth having us take a look." },
+    { q: "Do indoor cats really need prevention?", a: "Yes. Fleas hitch rides indoors, and vaccines guard against risks that reach even homebody cats. We'll tailor a plan to your cat's lifestyle." },
+    { q: "My pet seems healthy — why bloodwork?", a: "Because pets hide illness so well. A baseline panel reveals what an exam can't, and gives us something to compare against as your pet ages." },
+    { q: "When should I spay or neuter?", a: "The best timing depends on species, breed, and size. Ask us and we'll give you a recommendation made for your specific pet." },
+    { q: "Are dental cleanings really necessary?", a: "Yes — and they're done under safe, monitored anesthesia so we can clean below the gumline and take x-rays. It protects far more than the teeth." },
+  ],
+  why: [
+    { rec: "We recommend bloodwork twice a year for senior pets", because: "Your pet can't tell you something feels off. Lab work reveals kidney, liver, and thyroid changes months before symptoms appear — so we can act early instead of reacting late." },
+    { rec: "We recommend dental cleanings under anesthesia", because: "It's the only way to clean below the gumline and take x-rays without pain or fear. That hidden part is what actually protects the heart, kidneys, and your pet's comfort." },
+    { rec: "We recommend year-round parasite prevention", because: "Our mild Sonoma winters never fully clear out fleas, ticks, and mosquitoes. Steady prevention costs a fraction of treating the diseases they carry." },
+    { rec: "We recommend microchipping", because: "Collars slip off; a microchip doesn't. It's a permanent ID that reunites lost pets with their families — a small step for lifelong peace of mind." },
+    { rec: "We recommend pre-anesthetic screening", because: "It lets us tailor anesthesia to your individual pet and catch hidden risks before they matter. Safety comes first, every single time." },
+    { rec: "We recommend keeping pets lean", because: "Lean pets live measurably longer and move more comfortably. It's the single simplest thing you can do to add healthy years." },
+  ],
+  update: [
+    { title: "Independent and family-owned since 1961", body: "Four generations of Santa Rosa families have trusted us with their pets. Same local care, same familiar faces — never a corporate chain." },
+    { title: "Book online, anytime", body: "Schedule your pet's visit 24/7 from your phone. No hold music, no waiting for business hours." },
+    { title: "Transparent pricing, no surprises", body: "We publish our dental package pricing openly — so you always know what to expect before you say yes." },
+  ],
+  /* --- Care team. Edit these in content.json, not here. --------- */
+  staff: [
+    { name: "Dr. Deborah Crippen, DVM", role: "Veterinarian since 1983", line: "Forty-plus years caring for Santa Rosa pets — many of our clients were brought here as children by their own parents." },
+    { name: "Dr. Deepa Sharma, DVM, MVSc", role: "Veterinarian", line: "Joined Lakeside in 2026, bringing more than two decades of small-animal practice with her." },
+  ],
+
+  /* --- Plain-language notices. The wait card matters most. ------ */
+  notice: [
+    { title: "Why the wait sometimes happens", body: "We keep room in the day for emergencies, because someday that emergency will be your pet. If we're running behind, it usually means someone needed us urgently. Thank you for your patience." },
+    { title: "Care that fits your budget", body: "We offer CareCredit and Cherry, and we're always willing to talk through options and priorities. Please ask — no one should skip care because the conversation felt awkward." },
+    { title: "Ask us before you order online", body: "Bring us the cart total and we'll tell you honestly how it compares. Every prescription filled here is checked against your pet's chart." },
+  ],
+
+  /* --- Update this one when you notice a local pattern. --------- */
+  thisweek: [
+    { title: "Foxtails are everywhere right now", body: "We're pulling them from paws, ears, and noses most days. Check your dog over after every walk — especially between the toes." },
+  ],
+
+  /* --- Reviews live entirely in content.json so they can be
+         swapped monthly without touching this file. -------------- */
+  review: [],
+
+  /* --- Spanish-language cards, rotated through the loop. -------- */
+  es: [
+    { title: "Bienvenidos a Lakeside", body: "Somos una clínica familiar e independiente en Santa Rosa desde 1961. Si prefiere hablar en español, avísele al personal con gusto le ayudamos." },
+    { title: "El mal aliento no es normal", body: "Casi siempre es señal de enfermedad dental. Si lo ha notado en su mascota, vale la pena que lo revisemos." },
+    { title: "Prevención todo el año", body: "Los inviernos suaves de Sonoma permiten que pulgas, garrapatas y mosquitos sigan activos. Prevenir cuesta mucho menos que tratar." },
+    { title: "Pregunte por las opciones de pago", body: "Aceptamos CareCredit y Cherry. Con gusto revisamos juntos las prioridades del tratamiento — solo pregunte." },
+  ],
+
+  seasonal: [
+    { months:[4,5,6,7,8,9], title:"Foxtail season is here", body:"Those barbed grass seeds burrow into paws, ears, and noses on Sonoma trails. Check your dog over after every walk — between the toes especially." },
+    { months:[6,7,8,9], title:"Beat the summer heat", body:"Never leave a pet in a parked car, walk in the cool of morning or evening, and try the 7-second test: if the pavement's too hot for your hand, it's too hot for paws." },
+    { months:[6,7], title:"Fireworks can terrify pets", body:"More pets go missing around the Fourth of July than any other time. Make sure ID and microchip info is current, create a quiet safe space, and ask us about calming options." },
+    { months:[10,11,12,1], title:"Rainy-season hazards", body:"After the first rains, mushrooms and rodent bait become tempting and dangerous. Keep an eye on what your pet sniffs and snacks on outdoors." },
+    { months:[11,12], title:"Keep the holidays pet-safe", body:"Chocolate, xylitol, grapes and raisins, rich table scraps, and lilies (for cats) are all toxic. When in doubt, keep it out of reach — and call us." },
+    { months:[12,1,2], title:"Cold-weather care", body:"Antifreeze is sweet, tempting, and deadly — clean up spills fast. Short-haired and senior pets feel the cold, so keep outings short on chilly mornings." },
+    { months:[2,3,4], title:"Spring allergies flare up", body:"Itchy skin, licking paws, and ear infections pick up as things bloom. Relief is available — let us know if your pet seems uncomfortable." },
+  ],
+};
+
+/* =========================================================
+   Load optional content.json and merge with the library
+   ========================================================= */
+let CONTENT = deepCopy(LIBRARY);
+
+async function loadContentJson() {
+  try {
+    const res = await fetch("content.json?_=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) return;                 // no file yet — that's fine
+    const extra = await res.json();
+    const merged = deepCopy(LIBRARY);
+    for (const key of Object.keys(SECTIONS)) {
+      if (Array.isArray(extra[key]) && extra[key].length) {
+        merged[key] = merged[key].concat(extra[key]);
+      }
+    }
+    CONTENT = merged;
+  } catch (e) {
+    /* malformed or missing file: keep whatever we already have */
+    console.warn("content.json not loaded:", e.message);
+  }
+}
+
+/* =========================================================
+   Weather (Open-Meteo — free, no key) + pet reminder logic
+   ========================================================= */
+let WEATHER = null;   // { tempF, code, isDay, label, icon }
+
+const WX = {
+  0:["Clear","☀️"],1:["Mainly clear","🌤️"],2:["Partly cloudy","⛅"],3:["Overcast","☁️"],
+  45:["Fog","🌫️"],48:["Freezing fog","🌫️"],
+  51:["Light drizzle","🌦️"],53:["Drizzle","🌦️"],55:["Heavy drizzle","🌧️"],
+  61:["Light rain","🌦️"],63:["Rain","🌧️"],65:["Heavy rain","🌧️"],
+  66:["Freezing rain","🌧️"],67:["Freezing rain","🌧️"],
+  71:["Light snow","🌨️"],73:["Snow","🌨️"],75:["Heavy snow","❄️"],77:["Snow grains","🌨️"],
+  80:["Showers","🌦️"],81:["Showers","🌧️"],82:["Heavy showers","⛈️"],
+  95:["Thunderstorm","⛈️"],96:["Thunderstorm","⛈️"],99:["Thunderstorm","⛈️"],
+};
+
+async function loadWeather() {
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}`
+              + `&current=temperature_2m,is_day,weather_code&temperature_unit=fahrenheit&timezone=America/Los_Angeles`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("weather http " + res.status);
+    const d = await res.json();
+    const c = d.current;
+    const [label, icon] = WX[c.weather_code] || ["—","🌡️"];
+    WEATHER = { tempF: Math.round(c.temperature_2m), code: c.weather_code, isDay: c.is_day === 1, label, icon };
+    renderWxChip();
+  } catch (e) {
+    console.warn("weather unavailable:", e.message);
+    WEATHER = null;
+    document.getElementById("wxChip").hidden = true;
+  }
+}
+
+function petReminder(w) {
+  const month = new Date().getMonth() + 1;
+
+  // If the forecast didn't load we know nothing about today's weather,
+  // so say nothing about it. Claiming "warm and dry" on a rainy day
+  // because the fetch failed is worse than a generic line.
+  if (!w) {
+    return "Whatever the day brings, a little planning helps — fresh water, a check for foxtails after walks, and shade or shelter when they need it.";
+  }
+
+  const t = w.tempF;
+  const code = w.code;
+  // priority order: extreme heat > cold > storms/rain > seasonal note > default
+  if (t !== null && t >= 85) return "It's hot out there. Skip midday walks, bring water, and never leave a pet in a parked car — interiors turn dangerous within minutes.";
+  if (t !== null && t <= 42) return "Chilly today. Short-haired and senior pets feel the cold — keep walks brief, and wipe paws clean of any road salt or antifreeze.";
+  if (code !== null && code >= 61 && code <= 82) return "Wet weather ahead. Towel off muddy paws after walks, and keep your pet clear of standing water and puddles they'd love to drink from.";
+  if (code !== null && code >= 45 && code <= 48) return "Foggy and damp this morning. Keep your dog visible and close on early walks — drivers can't see as far as you can.";
+  if ([6,7,8,9].includes(month)) return "Warm and dry — perfect foxtail weather. Check paws and ears after every walk, and keep fresh water handy.";
+  if ([12,1,2].includes(month)) return "A cozy day to stay in. Keep senior pets warm, and remember antifreeze spills are sweet but deadly.";
+  return "A comfortable day for a walk. Bring water, watch for foxtails on the trail, and enjoy the fresh air together.";
+}
+
+/* =========================================================
+   Playlist: interleave section types so nothing repeats
+   back-to-back, reshuffle every full loop for variety.
+   ========================================================= */
+function pick(arr, i) { return arr[i % arr.length]; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function seasonalItems() {
+  const m = new Date().getMonth() + 1;
+  const hits = CONTENT.seasonal.filter(s => s.months && s.months.includes(m));
+  return hits.length ? hits : CONTENT.seasonal;   // fallback: all
+}
+
+// The order the screen cycles through. "why" appears twice — it's the
+// emphasized angle you asked to lead with.
+// Reviews sit at slots 3, 8 and 13 — every fifth card. Each one also
+// follows a "why we recommend it" or a question card, so a claim is
+// immediately backed by someone else confirming it. Reviews never
+// follow the payment card; testimonial-after-price reads as a pitch.
+const ORDER = ["why","health","review","seasonal","didyou","thisweek","question","review","staff","es","why","notice","review","update","weather"];
+
+let cursors = { health:0, didyou:0, seasonal:0, question:0, why:0, update:0, staff:0, notice:0, thisweek:0, es:0, review:0 };
+let playIndex = 0;
+
+/* Start somewhere different on every load, and somewhere different
+   each DAY. The day-of-year term means a client who comes Monday and
+   again Tuesday sees a different stretch of the library rather than
+   the same opening run. The random term keeps repeat loads within a
+   single day from feeling identical. */
+function randomizeStart() {
+  const now = new Date();
+  const dayOfYear = Math.floor(
+    (now - new Date(now.getFullYear(), 0, 0)) / 86400000
+  );
+  playIndex = Math.floor(Math.random() * ORDER.length);
+  let spread = 0;
+  for (const key of Object.keys(cursors)) {
+    const pool = CONTENT[key];
+    if (!pool || !pool.length) { cursors[key] = 0; continue; }
+    // different stride per pool so they don't all advance in lockstep
+    spread += 7;
+    const daily = (dayOfYear * spread) % pool.length;
+    const jitter = Math.floor(Math.random() * pool.length);
+    cursors[key] = (daily + jitter) % pool.length;
+  }
+}
+
+function nextSlide() {
+  const type = pick(ORDER, playIndex);
+  playIndex++;
+  const meta = SECTIONS[type];
+
+  if (type === "weather") return { type, meta };
+
+  if (type === "seasonal") {
+    const items = seasonalItems();
+    const item = pick(items, cursors.seasonal++);
+    return { type, meta, item };
+  }
+
+  const pool = CONTENT[type];
+  if (!pool || !pool.length) {
+    // Nothing in this pool — skip it rather than render an empty card.
+    return nextSlide();
+  }
+  const item = pick(pool, cursors[type]++);
+  return { type, meta, item };
+}
+
+/* =========================================================
+   Rendering
+   ========================================================= */
+function esc(s){ return String(s).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+function renderCard(slide) {
+  const { type, meta, item } = slide;
+  const accent = meta.accent;
+  let inner = "";
+  const eyebrow = (kicker="") =>
+    `<div class="eyebrow" style="--accent:${accent}"><span class="dot"></span>${meta.label}${kicker?`<span class="kicker">· ${kicker}</span>`:""}</div>`;
+
+  if (type === "weather") {
+    const w = WEATHER;
+    const icon = w ? w.icon : "🌡️";
+    const temp = w ? `${w.tempF}°` : "—";
+    const cond = w ? w.label : "Santa Rosa";
+    inner = `
+      ${eyebrow("Santa Rosa")}
+      <div class="wx-card">
+        <div class="wx-now">
+          <div class="big-ico">${icon}</div>
+          <div class="big-temp">${temp}</div>
+          <div class="cond">${esc(cond)}</div>
+        </div>
+        <div class="wx-msg">
+          <div class="headline" style="font-size:calc(4.6*var(--cu)); max-width:20ch;">Weather &amp; your pet</div>
+          <div class="body" style="font-size:calc(3*var(--cu));">${esc(petReminder(w))}</div>
+        </div>
+      </div>`;
+  }
+  else if (type === "why") {
+    inner = `
+      ${eyebrow()}
+      <div class="headline" style="--accent:${accent}">${esc(item.rec)}</div>
+      <div class="because" style="--accent:${accent}">
+        <div class="lab">Here's why</div>
+        <div class="txt">${esc(item.because)}</div>
+      </div>`;
+  }
+  else if (type === "review") {
+    const n = Math.max(1, Math.min(5, item.stars || 5));
+    const stars = "★".repeat(n);
+    const src = item.source ? ` <span class="src">· via ${esc(item.source)}</span>` : "";
+    const note = item.note ? ` <span class="src">· ${esc(item.note)}</span>` : "";
+    inner = `
+      ${eyebrow()}
+      <div class="stars" aria-label="${n} out of 5 stars">${stars}</div>
+      <div class="review-text">${esc(item.text)}</div>
+      <div class="review-by">${esc(item.by)}${src}${note}</div>`;
+  }
+  else if (type === "staff") {
+    inner = `
+      ${eyebrow(item.role || "")}
+      <div class="headline">${esc(item.name)}</div>
+      <div class="body">${esc(item.line)}</div>`;
+  }
+  else if (type === "question") {
+    inner = `
+      ${eyebrow()}
+      <div class="qa">
+        <div class="q">${esc(item.q)}</div>
+        <div class="a">${esc(item.a)}</div>
+      </div>`;
+  }
+  else {
+    const shortClass = item.title && item.title.length < 22 ? " short" : "";
+    inner = `
+      ${eyebrow()}
+      <div class="headline${shortClass}">${esc(item.title)}</div>
+      <div class="body">${esc(item.body)}</div>`;
+  }
+
+  const card = document.getElementById("card");
+  card.style.setProperty("--accent", accent);   // tints the eyebrow and rules
+  card.classList.toggle("dark", type === "review");
+  // Header and footer float over the card, so they invert with it.
+  document.body.classList.toggle("on-dark", type === "review");
+  card.classList.remove("enter");
+  void card.offsetWidth;              // restart the entrance animation
+  card.innerHTML = inner;
+  card.classList.add("enter");
+  fitCard();
+}
+
+/* ---------------------------------------------------------
+   fitCard(): shrink the card's local unit until the content
+   fits. Uses a small set of fixed steps rather than a smooth
+   slide, so the great majority of cards render at exactly the
+   same size and only genuinely long ones drop a notch. A
+   continuous scale made every card slightly different, which
+   read as inconsistent typography rather than as fitting.
+   --------------------------------------------------------- */
+const FIT_STEPS = [1, 0.92, 0.84, 0.76, 0.68, 0.6];
+
+function fitCard() {
+  const card = document.getElementById("card");
+  if (!card) return;
+  for (const step of FIT_STEPS) {
+    card.style.setProperty("--fit", step);
+    if (card.scrollHeight <= card.clientHeight + 1) return;
+  }
+  // Nothing fit even at the smallest step — leave it there rather
+  // than clipping, and trim the copy in content.json.
+}
+
+/* progress bar + dots */
+const SLIDE_MS = 15000;   // seconds each card stays up (×1000). 15s = 15000.
+                          // Change this ONE number to speed up / slow down.
+                          // Don't go below ~10000 — the reading-heavy cards get cut off.
+let barStart = 0, rafId = null;
+
+function tickBar(ts) {
+  if (!barStart) barStart = ts;
+  const pct = Math.min(100, ((ts - barStart) / SLIDE_MS) * 100);
+  document.getElementById("progressBar").style.width = pct + "%";
+  if (pct < 100) rafId = requestAnimationFrame(tickBar);
+}
+function resetBar() {
+  cancelAnimationFrame(rafId);
+  barStart = 0;
+  document.getElementById("progressBar").style.width = "0%";
+  rafId = requestAnimationFrame(tickBar);
+}
+
+function buildDots() {
+  const el = document.getElementById("dots");
+  el.innerHTML = ORDER.map(() => `<i></i>`).join("");
+}
+function markDot(i) {
+  const dots = document.querySelectorAll("#dots i");
+  dots.forEach((d, k) => d.classList.toggle("on", k === (i % dots.length)));
+}
+
+/* =========================================================
+   Clock + weather chip
+   ========================================================= */
+function renderWxChip() {
+  const chip = document.getElementById("wxChip");
+  if (!WEATHER) { chip.hidden = true; return; }
+  document.getElementById("wxChipIco").textContent = WEATHER.icon;
+  document.getElementById("wxChipTemp").textContent = WEATHER.tempF + "°";
+  chip.hidden = false;
+}
+function renderClock() {
+  const now = new Date();
+  document.getElementById("clockTime").textContent =
+    now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  document.getElementById("clockDate").textContent =
+    now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+}
+
+/* =========================================================
+   Boot + timers
+   ========================================================= */
+let slideCounter = 0;
+
+function advance() {
+  const slide = nextSlide();
+  renderCard(slide);
+  markDot(slideCounter % ORDER.length);
+  slideCounter++;
+  resetBar();
+}
+
+async function boot() {
+  buildDots();
+  renderClock();
+  await Promise.all([loadContentJson(), loadWeather()]);
+  randomizeStart();
+  advance();
+
+  setInterval(advance, SLIDE_MS);                 // rotate cards
+  setInterval(renderClock, 1000);                 // clock, once a second
+  setInterval(loadWeather, 1000 * 60 * 15);       // weather every 15 min
+  setInterval(loadContentJson, 1000 * 60 * 30);   // re-read your edits every 30 min
+}
+
+/* webfonts change text metrics — re-fit once they've loaded */
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(fitCard);
+}
+
+/* re-fit if the TV or browser window changes size */
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(fitCard, 150);
+});
+
+/* recover gracefully if the tab is backgrounded then restored on a TV */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) { renderClock(); resetBar(); fitCard(); }
+});
+
+boot();
+
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)); }
+</script>
+</body>
+</html>
