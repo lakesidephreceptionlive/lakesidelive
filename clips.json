@@ -1,24 +1,24 @@
 {
-  "_comment": "Timed on-screen messages for clip.html. Each key is a YouTube video ID — the 11 characters after v= in the address. 't' is seconds into the video (absolute, not relative to the clip start); each line stays up until the next one. The key must exactly match the ?v= value in the OptiSigns asset URL, or the video plays with no text.",
+  "_comment": "Timed on-screen messages for clip.html. Each key is a YouTube video ID — the 11 characters after v= in the address. 't' is seconds into the video (absolute, not relative to the clip start); each line stays up until the next one. The key must exactly match the ?v= value in the OptiSigns asset URL, or the video plays with no text. Add &pos=top to the URL for any ad that has its own text along the bottom.",
 
   "gviLtf5jq14": {
-    "note": "Solensia / feline OA (Zoetis) — before-and-after cats. Asset URL: clip.html?v=gviLtf5jq14&start=20&end=144&cc=0. Duration 124s for one pass. Cue times are estimates — watch once and nudge them.",
+    "note": "Solensia / feline OA (Zoetis) — before-and-after cats. Asset URL: clip.html?v=gviLtf5jq14&start=20&end=144&cc=0&pos=top. Duration 124s. Captions moved to the top because the ad carries its own lower-third text. Cue times are estimates — watch once and nudge them.",
     "cues": [
       { "t": 20,  "text": "Cats hide pain. Slowing down often isn't just age." },
       { "t": 48,  "text": "Stopped jumping? Sleeping more? Less interested in play?" },
       { "t": 80,  "text": "Arthritis is far more common in cats than most owners realize" },
-      { "t": 112, "text": "Ask us to check your cat's mobility" }
+      { "t": 112, "text": "Ask us whether Solensia is right for your cat" }
     ]
   },
 
   "KOwz25N3vag": {
-    "note": "Cytopoint (Zoetis). Asset URL: clip.html?v=KOwz25N3vag&start=1&end=100&cc=0 — captions off because the auto-captions never spell Cytopoint correctly. Duration 100s for one pass.",
+    "note": "Cytopoint (Zoetis). Asset URL: clip.html?v=KOwz25N3vag&start=1&end=100&cc=0&pos=top — captions off because the auto-captions never spell Cytopoint correctly. Duration 100s.",
     "cues": [
       { "t": 1,  "text": "Licking. Biting. Chewing. All night." },
       { "t": 13, "text": "Pollen, mold, and dust mites can all set it off" },
-      { "t": 55, "text": "One in-office injection — four to eight weeks of relief" },
+      { "t": 55, "text": "One injection in our office — four to eight weeks of relief" },
       { "t": 73, "text": "Roscoe, before and after" },
-      { "t": 88, "text": "Ask us if your dog is a candidate" }
+      { "t": 88, "text": "Ask us whether Cytopoint is right for your dog" }
     ]
   }
 }
