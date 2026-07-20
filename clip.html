@@ -45,8 +45,15 @@
   /* The player is sized to cover the screen. YouTube always renders
      16:9 inside its iframe, so on a 16:9 TV this fills exactly. */
   #stage{position:fixed;inset:0;background:#000}
+  /* Default is "cover": fill the screen and crop the overflow. Exact on a
+     16:9 TV, but any other shape loses the top and bottom — which is where
+     YouTube draws captions. ?fit=contain letterboxes instead, so nothing
+     is ever cut off. */
   #player{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     width:100vw;height:56.25vw;min-height:100vh;min-width:177.78vh;border:0}
+  body[data-fit="contain"] #player{
+    width:100vw;height:56.25vw;max-height:100vh;max-width:177.78vh;
+    min-height:0;min-width:0}
 
   /* Caption strap. Because the sound is off, this is what carries
      the message — keep it short enough to read at a glance.
@@ -120,6 +127,10 @@ const CC    = Q.get("cc") === "0" ? 0 : 1;
    Use it for any ad that carries its own lower-third text or legal
    copy — otherwise the two overlap and both become unreadable. */
 document.body.dataset.pos = Q.get("pos") === "top" ? "top" : "bottom";
+
+/* ?fit=contain letterboxes the video so nothing is cropped. Worth using
+   on any screen that isn't exactly 16:9, and while testing on a laptop. */
+document.body.dataset.fit = Q.get("fit") === "contain" ? "contain" : "cover";
 
 /* ---------- timed on-screen messages ----------
    A muted lobby screen doesn't want a transcript — it wants a few
@@ -195,22 +206,32 @@ if(VIDEO){
 }
 
 function onYouTubeIframeAPIReady(){
+  /* Built conditionally on purpose. Sending cc_lang_pref while trying to
+     keep captions OFF can switch them back on — a language preference
+     implies you want captions in that language. When cc=0 we send no
+     caption parameters at all. */
+  const vars = {
+    autoplay: 1,
+    mute: 1,               // required for autoplay; also what we want on a lobby screen
+    controls: 0,
+    disablekb: 1,
+    fs: 0,
+    rel: 0,                // limits end-screen suggestions to the same channel
+    playsinline: 1,
+    iv_load_policy: 3,     // hide annotations
+    start: Math.floor(START)
+  };
+  if(END) vars.end = Math.ceil(END);
+  if(CC === 1){
+    vars.cc_load_policy = 1;
+    vars.cc_lang_pref = "en";
+  } else {
+    vars.cc_load_policy = 0;
+  }
+
   player = new YT.Player("player", {
     videoId: VIDEO,
-    playerVars: {
-      autoplay: 1,
-      mute: 1,               // required for autoplay; also what we want on a lobby screen
-      controls: 0,
-      disablekb: 1,
-      fs: 0,
-      rel: 0,                // limits end-screen suggestions to the same channel
-      playsinline: 1,
-      cc_load_policy: CC,    // ask YouTube to show captions
-      cc_lang_pref: "en",
-      iv_load_policy: 3,     // hide annotations
-      start: Math.floor(START),
-      end: END ? Math.ceil(END) : undefined
-    },
+    playerVars: vars,
     events: { onReady, onStateChange, onError }
   });
 }
@@ -220,6 +241,27 @@ function onReady(e){
   e.target.mute();                 // belt and braces — some TV browsers ignore the param
   e.target.seekTo(START, true);
   e.target.playVideo();
+
+  /* cc_load_policy is only a request, and YouTube overrides it when the
+     viewer or the device has captions switched on globally. Unloading the
+     caption modules is the only reliable way to keep them off. Both module
+     names are tried because the player uses different ones depending on
+     which internal version it loads. */
+  if(CC === 0){
+    const kill = () => {
+      // Three approaches, because which one works depends on the player
+      // build the device happens to load.
+      try { e.target.unloadModule("captions"); } catch(_){}
+      try { e.target.unloadModule("cc"); } catch(_){}
+      try { e.target.setOption("captions", "track", {}); } catch(_){}
+      try { e.target.setOption("cc", "track", {}); } catch(_){}
+    };
+    kill();
+    setTimeout(kill, 800);         // again once the modules have finished loading
+    setTimeout(kill, 3000);
+    setTimeout(kill, 8000);
+  }
+
   loadCues().then(startWatchdog);
 }
 
