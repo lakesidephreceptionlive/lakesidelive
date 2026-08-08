@@ -6,7 +6,7 @@
 <title>Lakeside Clip Player</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   /* ============================================================
      LAKESIDE CLIP PLAYER
@@ -25,9 +25,12 @@
        end    seconds to stop and loop   (default: end of video)
        msg    optional caption strap along the bottom
        cc     1 to force YouTube captions on, 0 to leave off (default 1)
+       pos    top to put the caption along the top (default bottom)
+       fit    contain to letterbox instead of crop (default cover)
+       size   caption size: s, m (default), l, xl
 
      EXAMPLE
-       clip.html?v=dQw4w9WgXcQ&start=30&end=75&msg=Ask%20us%20about%20dental%20x-rays
+       clip.html?v=dQw4w9WgXcQ&start=30&end=75&pos=top&size=xl
 
      NOTES
      - Autoplay only works muted. That is a browser rule, not a
@@ -37,7 +40,12 @@
      ============================================================ */
   :root{
     --maroon:#591913; --brick:#B72934; --cream:#F4ECE0; --honey:#C6852E;
+    --cap: calc(2.3vw + 2.3vh);        /* default caption size (m) */
   }
+  body[data-size="s"]  { --cap: calc(1.6vw + 1.6vh); }
+  body[data-size="l"]  { --cap: calc(2.8vw + 2.8vh); }
+  body[data-size="xl"] { --cap: calc(3.4vw + 3.4vh); }
+
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;width:100%;overflow:hidden;background:#000;
     font-family:"Figtree",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
@@ -60,18 +68,18 @@
      Many manufacturer ads put their own text and legal copy along
      the bottom, so ?pos=top moves ours out of their way. */
   #msg{position:fixed;left:0;right:0;bottom:0;z-index:5;
-    padding:calc(1.4vh + 0.5vw) 4vw calc(1.8vh + 0.5vw);
-    background:linear-gradient(to top,rgba(0,0,0,.62) 0%,rgba(0,0,0,.34) 60%,rgba(0,0,0,0) 100%);
-    color:#fff;font-size:calc(1.1vw + 1.1vh);font-weight:600;line-height:1.3;
-    text-align:center;letter-spacing:.005em;text-shadow:0 2px 12px rgba(0,0,0,.85);
+    padding:calc(2vh + 0.8vw) 4vw calc(2.4vh + 0.8vw);
+    background:linear-gradient(to top,rgba(0,0,0,.74) 0%,rgba(0,0,0,.42) 60%,rgba(0,0,0,0) 100%);
+    color:#fff;font-size:var(--cap);font-weight:800;line-height:1.18;
+    text-align:center;letter-spacing:.005em;text-shadow:0 3px 18px rgba(0,0,0,.95),0 1px 3px rgba(0,0,0,.9);
     transition:opacity .22s ease}
   #msg b{color:var(--honey)}
   #msg:empty{display:none}
 
   body[data-pos="top"] #msg{
     bottom:auto;top:0;
-    padding:calc(2.4vh + 0.5vw) 4vw calc(1.6vh + 0.5vw);
-    background:linear-gradient(to bottom,rgba(0,0,0,.62) 0%,rgba(0,0,0,.34) 60%,rgba(0,0,0,0) 100%)}
+    padding:calc(3vh + 0.8vw) 4vw calc(2vh + 0.8vw);
+    background:linear-gradient(to bottom,rgba(0,0,0,.74) 0%,rgba(0,0,0,.42) 60%,rgba(0,0,0,0) 100%)}
   /* the brand mark moves down so the two don't overlap */
   body[data-pos="top"] #mark{top:auto;bottom:2.4vh}
 
@@ -131,6 +139,10 @@ document.body.dataset.pos = Q.get("pos") === "top" ? "top" : "bottom";
 /* ?fit=contain letterboxes the video so nothing is cropped. Worth using
    on any screen that isn't exactly 16:9, and while testing on a laptop. */
 document.body.dataset.fit = Q.get("fit") === "contain" ? "contain" : "cover";
+
+/* ?size sets caption size: s, m (default), l, xl. */
+const SIZE = (Q.get("size") || "m").toLowerCase();
+document.body.dataset.size = ["s","m","l","xl"].includes(SIZE) ? SIZE : "m";
 
 /* ---------- timed on-screen messages ----------
    A muted lobby screen doesn't want a transcript — it wants a few
