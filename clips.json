@@ -1,24 +1,39 @@
 {
-  "_comment": "Timed on-screen messages for clip.html. Each key is a YouTube video ID — the 11 characters after v= in the address. 't' is seconds into the video (absolute, not relative to the clip start); each line stays up until the next one. The key must exactly match the ?v= value in the OptiSigns asset URL, or the video plays with no text. Add &pos=top to the URL for any ad that has its own text along the bottom.",
+  "_comment": "Timed on-screen messages for clip.html. Each key is a YouTube video ID — the 11 characters after v= in the address. 't' is seconds into the video (absolute, not relative to the clip start); each line stays up until the next one. Use 'text' for plain lines, or 'html' for styled ones: <span class=flash> pulses, <span class=big> enlarges, <span class=pos> is the bright closing colour. The key must match the ?v= value in the OptiSigns asset URL.",
 
   "gviLtf5jq14": {
-    "note": "Solensia / feline OA (Zoetis) — before-and-after cats. Asset URL: clip.html?v=gviLtf5jq14&start=20&end=144&cc=0&pos=top. Duration 124s. Captions moved to the top because the ad carries its own lower-third text. Cue times are estimates — watch once and nudge them.",
+    "note": "Solensia / feline OA (Zoetis). Asset URL: clip.html?v=gviLtf5jq14&start=20&end=144&cc=0&pos=top&size=l. Short spurts, product name flashing large, bright close.",
     "cues": [
-      { "t": 20,  "text": "Cats hide pain. Slowing down often isn't just age." },
-      { "t": 48,  "text": "Stopped jumping? Sleeping more? Less interested in play?" },
-      { "t": 80,  "text": "Arthritis is far more common in cats than most owners realize" },
-      { "t": 112, "text": "Ask us whether Solensia is right for your cat" }
+      { "t": 20, "text": "Is your cat slowing down?" },
+      { "t": 34, "text": "Not jumping. Sleeping more. Hiding." },
+      { "t": 50, "text": "It may not be age — it may be pain." },
+      { "t": 66, "html": "There's help: <span class=\"big flash\">SOLENSIA</span>" },
+      { "t": 82, "text": "A once-a-month injection for arthritis pain" },
+      { "t": 100, "html": "<span class=\"pos\">Watch your cat come back to life</span>" },
+      { "t": 122, "html": "Ask us about <span class=\"big\">SOLENSIA</span> today" }
     ]
   },
 
   "KOwz25N3vag": {
-    "note": "Cytopoint (Zoetis). Asset URL: clip.html?v=KOwz25N3vag&start=1&end=100&cc=0&pos=top — captions off because the auto-captions never spell Cytopoint correctly. Duration 100s.",
+    "note": "Cytopoint (Zoetis). Asset URL: clip.html?v=KOwz25N3vag&start=1&end=100&cc=0&pos=top&size=l. Short spurts, product name flashing, bright close.",
     "cues": [
-      { "t": 1,  "text": "Licking. Biting. Chewing. All night." },
-      { "t": 13, "text": "Pollen, mold, and dust mites can all set it off" },
-      { "t": 55, "text": "One injection in our office — four to eight weeks of relief" },
-      { "t": 73, "text": "Roscoe, before and after" },
-      { "t": 88, "text": "Ask us whether Cytopoint is right for your dog" }
+      { "t": 1,  "text": "Up all night — licking, biting, scratching?" },
+      { "t": 16, "text": "Allergies make dogs miserable." },
+      { "t": 34, "html": "There's relief: <span class=\"big flash\">CYTOPOINT</span>" },
+      { "t": 55, "text": "One injection. Weeks of calm." },
+      { "t": 73, "html": "<span class=\"pos\">A happy, comfortable dog again</span>" },
+      { "t": 88, "html": "Ask us about <span class=\"big\">CYTOPOINT</span> today" }
+    ]
+  },
+
+  "0zyNzDtBCfI": {
+    "note": "Puppy/dog vaccinations (Purina) — cut at 1:32 before the subscribe/purina.com outro. Asset URL: clip.html?v=0zyNzDtBCfI&start=1&end=92&cc=0&pos=top&size=l",
+    "cues": [
+      { "t": 1,  "text": "New puppy? Protection starts early." },
+      { "t": 22, "text": "A puppy's early immunity fades fast." },
+      { "t": 40, "text": "The vaccine series is how they stay safe." },
+      { "t": 62, "text": "Adult dogs need boosters too." },
+      { "t": 80, "html": "<span class=\"pos\">Ask us what your dog is due for</span>" }
     ]
   }
 }
