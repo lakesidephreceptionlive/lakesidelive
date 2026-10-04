@@ -5,7 +5,6 @@ Run every 30 min during clinic hours (e.g. 7am-6pm), the same way your lab-resul
 ## Which appointments to include (allow-list by NectarVet appointment TYPE; anything else is skipped)
 Include only these exact types:
 - Exam-Wellness
-- Exam-Sick/Injured
 - Health Certificate
 - Surgery  -> include ONLY if the start/drop-off time is before 10:00 AM
 
@@ -14,7 +13,8 @@ If the type is on the list but the color looks unexpected, still include it, but
 run log so we can spot mislabeled appointments. If the type is NOT on the list, skip it even if
 the color is blue or red.
 
-Everything else is skipped, including Recheck, tech appointments, euthanasia, hospitalized
+Everything else is skipped, including Exam-Sick/Injured (excluded for now; may be added later
+after a few weeks of clean runs), Recheck, tech appointments, euthanasia, hospitalized
 patients, dental, boarding, and any new or unrecognized type.
 
 ## Safety backstop (required)
