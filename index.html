@@ -232,6 +232,25 @@
   .card.dark .eyebrow { color: var(--honey); }
   .card.dark .eyebrow .kicker { color: rgba(255,255,255,0.62); }
 
+  /* WELCOME card: the only solid brand-red card, so it reads as
+     "this one is for the people in the room". Static, no motion. */
+  .card.welcome {
+    position: relative;
+    background: linear-gradient(160deg, #C7303C 0%, var(--brick) 55%, #9C2029 100%);
+    box-shadow: none; border-top: 0;
+  }
+  .card.welcome .eyebrow { color: #FFE9C7; }
+  .card.welcome .headline { color: #FFF7EE; max-width: 22ch; font-size: calc(7 * var(--cu)); }
+  .card.welcome .body { color: rgba(255,247,238,0.88); }
+  /* two large, faint paw prints behind the text (static, clear of header/footer) */
+  .card.welcome::before, .card.welcome::after {
+    content: ""; position: absolute; pointer-events: none; opacity: 0.12;
+    width: calc(15 * var(--u)); height: calc(15 * var(--u));
+    background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'><g fill='white'><ellipse cx='30' cy='38' rx='14' ry='12'/><circle cx='12' cy='24' r='6'/><circle cx='24' cy='13' r='6'/><circle cx='38' cy='13' r='6'/><circle cx='50' cy='24' r='6'/></g></svg>") no-repeat center / contain;
+  }
+  .card.welcome::before { left: calc(9 * var(--u)); top: calc(30 * var(--u)); transform: rotate(-16deg); }
+  .card.welcome::after  { right: calc(9 * var(--u)); top: calc(40 * var(--u)); transform: rotate(14deg); }
+
   /* When a dark card is showing, the logo, clock, weather chip and
      tagline are sitting on top of it — so they have to invert or they
      disappear into the background. */
@@ -396,6 +415,17 @@ function joinNames(a) {
   if (a.length <= 1) return a[0] || "";
   if (a.length === 2) return a[0] + " & " + a[1];
   return a.slice(0, -1).join(", ") + " & " + a[a.length - 1];
+}
+const WELCOME_LINES = [
+  "We're so happy to see you today!",
+  "We've been looking forward to you!",
+  "Great to have you with us.",
+  "Your care team is ready for you."
+];
+let welcomeLine = 0;
+function welcomeOpener() {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 async function loadArrivals() {
   // Preview only: open the board with ?demo=welcome to see sample pets.
@@ -790,11 +820,11 @@ function renderCard(slide) {
 
   if (type === "welcome") {
     const names = item.names;
-    const plural = names.length > 1;
+    const line = WELCOME_LINES[welcomeLine++ % WELCOME_LINES.length];
     inner = `
       ${eyebrow()}
-      <div class="headline" style="--accent:${accent}">Welcome, ${esc(joinNames(names))}!</div>
-      <div class="body">${plural ? "We're so happy to see you all today!" : "We're so happy to see you today!"}</div>`;
+      <div class="headline">${esc(welcomeOpener())}, ${esc(joinNames(names))}!</div>
+      <div class="body">${esc(line)}</div>`;
   }
   else if (type === "weather") {
     const w = WEATHER;
@@ -897,8 +927,9 @@ function renderCard(slide) {
   const card = document.getElementById("card");
   card.style.setProperty("--accent", accent);   // tints the eyebrow and rules
   card.classList.toggle("dark", type === "review");
+  card.classList.toggle("welcome", type === "welcome");
   // Header and footer float over the card, so they invert with it.
-  document.body.classList.toggle("on-dark", type === "review");
+  document.body.classList.toggle("on-dark", type === "review" || type === "welcome");
   card.classList.remove("enter");
   void card.offsetWidth;              // restart the entrance animation
   card.innerHTML = inner;
