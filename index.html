@@ -398,6 +398,10 @@ function joinNames(a) {
   return a.slice(0, -1).join(", ") + " & " + a[a.length - 1];
 }
 async function loadArrivals() {
+  // Preview only: open the board with ?demo=welcome to see sample pets.
+  if (/[?&]demo=welcome\b/.test(location.search)) {
+    ARRIVALS = ["Bella", "Max", "Luna"]; return;
+  }
   if (!ARRIVALS_URL) { ARRIVALS = []; return; }
   try {
     const ctl = new AbortController();
@@ -790,7 +794,7 @@ function renderCard(slide) {
     inner = `
       ${eyebrow()}
       <div class="headline" style="--accent:${accent}">Welcome, ${esc(joinNames(names))}!</div>
-      <div class="body">${plural ? "We're so happy to see you all today." : "We're so happy to see you today."} Our team is ready for you.</div>`;
+      <div class="body">${plural ? "We're so happy to see you all today!" : "We're so happy to see you today!"}</div>`;
   }
   else if (type === "weather") {
     const w = WEATHER;
