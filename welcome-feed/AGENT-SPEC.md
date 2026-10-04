@@ -4,7 +4,8 @@ Run every 30 min during clinic hours (e.g. 7am-6pm), the same way your lab-resul
 
 ## Which appointments to include (allow-list: anything else is skipped)
 Identify by the appointment COLOR in the NectarVet schedule:
-- BLUE  = exam          -> include
+- BLUE or LIGHT BLUE = exam -> include (treat both shades as exam; the agent should
+  match any blue-family color, and skip if the shade is ambiguous or could be another category)
 - RED   = surgery       -> include ONLY if the start/drop-off time is before 10:00 AM
 Never include: rechecks, tech appointments, euthanasia, hospitalized patients,
 or any color/type not listed above.
