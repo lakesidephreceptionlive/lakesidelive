@@ -357,7 +357,47 @@ const SECTIONS = {
   es:       { label: "En Español",               accent: "var(--slate)"  },
   review:   { label: "What Our Clients Say",     accent: "var(--honey)"  },
   weather:  { label: "Today's Forecast",         accent: "var(--slate)"  },
+  welcome:  { label: "Welcome In",               accent: "var(--brick)"  },
 };
+
+/* =========================================================
+   WELCOME CARD — pets due at the hospital right now.
+   Leave ARRIVALS_URL empty and the feature is completely off.
+   Paste your Apps Script web-app URL (see welcome-feed/README.md)
+   to turn it on. The feed only ever returns pet FIRST NAMES for
+   pets due about now; this page sanitizes them again anyway.
+   ========================================================= */
+const ARRIVALS_URL = "";
+let ARRIVALS = [];
+
+function cleanNames(list) {
+  if (!Array.isArray(list)) return [];
+  const seen = new Set(), out = [];
+  for (let n of list) {
+    n = String(n == null ? "" : n).replace(/[^A-Za-z'\u2019\- ]/g, "").replace(/\s+/g, " ").trim().slice(0, 20);
+    if (!n || seen.has(n.toLowerCase())) continue;
+    seen.add(n.toLowerCase()); out.push(n);
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+function joinNames(a) {
+  if (a.length <= 1) return a[0] || "";
+  if (a.length === 2) return a[0] + " & " + a[1];
+  return a.slice(0, -1).join(", ") + " & " + a[a.length - 1];
+}
+async function loadArrivals() {
+  if (!ARRIVALS_URL) { ARRIVALS = []; return; }
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch(ARRIVALS_URL, { cache: "no-store", signal: ctl.signal });
+    clearTimeout(t);
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    ARRIVALS = cleanNames(j && j.names);
+  } catch (e) { ARRIVALS = []; }   // any failure = no welcome card
+}
 
 /* =========================================================
    BUILT-IN EVERGREEN LIBRARY
@@ -540,7 +580,7 @@ function seasonalItems() {
 // follows a "why we recommend it" or a question card, so a claim is
 // immediately backed by someone else confirming it. Reviews never
 // follow the payment card; testimonial-after-price reads as a pitch.
-const ORDER = ["why","health","review","seasonal","didyou","thisweek","question","review","staff","es","why","notice","review","update","weather"];
+const ORDER = ["welcome","why","health","review","seasonal","didyou","welcome","thisweek","question","review","staff","es","why","welcome","notice","review","update","weather"];
 
 let cursors = { health:0, didyou:0, seasonal:0, question:0, why:0, update:0, staff:0, notice:0, thisweek:0, es:0, review:0 };
 let playIndex = 0;
@@ -575,6 +615,11 @@ function nextSlide() {
 
   if (type === "weather") return { type, meta };
 
+  if (type === "welcome") {
+    if (!ARRIVALS.length) return nextSlide();   // nobody due: skip
+    return { type, meta, item: { names: ARRIVALS.slice() } };
+  }
+
   if (type === "seasonal") {
     const items = seasonalItems();
     const item = pick(items, cursors.seasonal++);
@@ -602,7 +647,15 @@ function renderCard(slide) {
   const eyebrow = (kicker="") =>
     `<div class="eyebrow" style="--accent:${accent}"><span class="dot"></span>${meta.label}${kicker?`<span class="kicker">· ${kicker}</span>`:""}</div>`;
 
-  if (type === "weather") {
+  if (type === "welcome") {
+    const names = item.names;
+    const plural = names.length > 1;
+    inner = `
+      ${eyebrow()}
+      <div class="headline" style="--accent:${accent}">Welcome, ${esc(joinNames(names))}!</div>
+      <div class="body">${plural ? "We're so happy to see you all today." : "We're so happy to see you today."} Our team is ready for you.</div>`;
+  }
+  else if (type === "weather") {
     const w = WEATHER;
     const icon = w ? w.icon : "🌡️";
     const temp = w ? `${w.tempF}°` : "—";
@@ -758,13 +811,14 @@ function advance() {
 async function boot() {
   buildDots();
   renderClock();
-  await Promise.all([loadContentJson(), loadWeather()]);
+  await Promise.all([loadContentJson(), loadWeather(), loadArrivals()]);
   randomizeStart();
   advance();
 
   setInterval(advance, SLIDE_MS);                 // rotate cards
   setInterval(renderClock, 1000);                 // clock, once a second
   setInterval(loadWeather, 1000 * 60 * 15);       // weather every 15 min
+  setInterval(loadArrivals, 1000 * 60 * 5);       // who is due now, every 5 min
   setInterval(loadContentJson, 1000 * 60 * 30);   // re-read your edits every 30 min
 }
 
