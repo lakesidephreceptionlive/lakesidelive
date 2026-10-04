@@ -31,6 +31,7 @@
     --honey:    #C6852E;   /* seasonal accent                   */
     --clay:     #B15A34;   /* client-question accent            */
     --slate:    #4C6C74;   /* did-you-know / weather accent      */
+    --leaf:     #4C7A2E;   /* good-news accent                   */
     --line:     rgba(89,25,19,0.14);
 
     /* global scaling unit. --tv is set from the ?scale= URL param
@@ -211,6 +212,13 @@
   .wx-now .cond { font-size: calc(2.3*var(--cu)); color: var(--ink-soft); font-weight:600; text-transform: capitalize; }
   .wx-msg { display: grid; gap: calc(1.6*var(--cu)); justify-items: center; max-width: 40ch; }
 
+  /* adoptable-pets card (QR to the shelter's live listing) */
+  .adopt-card { display: grid; grid-template-columns: auto 1fr; gap: calc(4.5*var(--cu)); align-items: center; }
+  .adopt-qr { background: #fff; padding: calc(1.6*var(--cu)); border-radius: calc(1.6*var(--cu)); box-shadow: 0 calc(0.6*var(--cu)) calc(2.4*var(--cu)) rgba(89,25,19,0.16); display: grid; justify-items: center; gap: calc(1*var(--cu)); }
+  .adopt-qr img { width: calc(26*var(--cu)); height: calc(26*var(--cu)); display: block; }
+  .adopt-qr .scan { font-size: calc(1.6*var(--cu)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--leaf); }
+  .adopt-msg { display: grid; gap: calc(1.4*var(--cu)); }
+
   /* ---------- Review card (dark treatment) ----------
      Reviews are the only dark card in the rotation. That contrast
      is the whole point — an item that breaks a visual series gets
@@ -351,6 +359,8 @@ const SECTIONS = {
   question: { label: "You Asked, We Answer",     accent: "var(--clay)"   },
   why:      { label: "Why We Recommend It",      accent: "var(--brick)"  },
   update:   { label: "Hospital Update",          accent: "var(--maroon)" },
+  news:     { label: "Good News",                accent: "var(--leaf)"   },
+  adopt:    { label: "Adoptable Pets",           accent: "var(--leaf)"   },
   staff:    { label: "Meet Your Care Team",      accent: "var(--maroon)" },
   notice:   { label: "Good to Know",             accent: "var(--clay)"   },
   thisweek: { label: "What We're Seeing Lately", accent: "var(--honey)"  },
@@ -358,6 +368,7 @@ const SECTIONS = {
   review:   { label: "What Our Clients Say",     accent: "var(--honey)"  },
   weather:  { label: "Today's Forecast",         accent: "var(--slate)"  },
   welcome:  { label: "Welcome In",               accent: "var(--brick)"  },
+  air:      { label: "Air Quality Today",        accent: "var(--slate)"  },
 };
 
 /* =========================================================
@@ -562,6 +573,124 @@ function petReminder(w) {
 }
 
 /* =========================================================
+   AIR QUALITY — live US AQI for Santa Rosa (Open-Meteo, no key).
+   Meaningful here: wildfire smoke and spring pollen both spike,
+   and poor air hits senior, flat-faced, and heart/lung pets hardest.
+   Refreshed every 30 min. If it can't load, the card is skipped.
+   ========================================================= */
+let AIR = null;
+function aqiInfo(a) {
+  if (a <= 50)  return { cat:"Good",                        color:"#4C7A2E", msg:"Air quality is good today — a wonderful day to get outside with your pet." };
+  if (a <= 100) return { cat:"Moderate",                    color:"#C6852E", msg:"Air is moderate — fine for most pets. Take it a little easier on seniors and flat-faced breeds." };
+  if (a <= 150) return { cat:"Unhealthy for Sensitive Pets",color:"#C0631F", msg:"Keep walks short for senior, flat-faced, or heart- and lung-sensitive pets today." };
+  if (a <= 200) return { cat:"Unhealthy",                   color:"#B72934", msg:"Air quality is unhealthy — limit outdoor time for all pets and watch for coughing or tiring quickly." };
+  return               { cat:"Very Unhealthy",              color:"#7A2E6B", msg:"Air is very poor — keep pets indoors as much as possible, and skip the walk today." };
+}
+async function loadAir() {
+  try {
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${LAT}&longitude=${LON}&current=us_aqi&timezone=America/Los_Angeles`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("air http " + res.status);
+    const c = (await res.json()).current;
+    if (c && typeof c.us_aqi === "number") {
+      const aqi = Math.round(c.us_aqi);
+      AIR = Object.assign({ aqi }, aqiInfo(aqi));
+    }
+  } catch (e) { AIR = null; }
+}
+
+/* =========================================================
+   GOOD NEWS — happy pet stories from Google News RSS
+   ---------------------------------------------------------
+   No API key. Fetched through free CORS proxies (with fallback),
+   weighted Santa Rosa -> California -> world. EVERY headline must
+   match a positive keyword AND clear a block-list, so grim stories
+   never reach the screen. Results cached 2 hrs so OptiSigns reloads
+   don't hammer the proxies. If nothing loads, news slots are simply
+   skipped — the rest of the board carries on.
+   ========================================================= */
+const NEWS_CACHE_KEY = "lakeside_news_v1";
+const NEWS_MAX_AGE_MS = 1000 * 60 * 60 * 2;   // 2 hours
+const PROXIES = [
+  u => "https://api.allorigins.win/raw?url=" + encodeURIComponent(u),
+  u => "https://corsproxy.io/?url=" + encodeURIComponent(u),
+  u => "https://thingproxy.freeboard.io/fetch/" + u,
+];
+const NEWS_QUERIES = [
+  { tag: "Santa Rosa", days: 45, q: '("Santa Rosa" OR "Sonoma County") (dog OR cat OR pet OR kitten OR puppy OR "animal shelter") (rescue OR adopted OR reunited OR "therapy dog" OR saved OR foster)' },
+  { tag: "California", days: 21, q: 'California (dog OR cat OR pet OR puppy OR kitten) (rescued OR adopted OR reunited OR "therapy dog" OR heartwarming OR hero)' },
+  { tag: "Good News", days: 14, q: '(dog OR cat OR pet OR puppy OR kitten) (rescued OR adopted OR reunited OR "therapy dog" OR heartwarming OR miracle OR hero OR "happy ending")' },
+];
+const ALLOW = /(rescue|rescued|adopt|adopted|adoption|reunit|reunion|therapy|service dog|comfort dog|foster|saved|save[sd]?\b|hero|heartwarming|miracle|survivor|homecoming|celebrat|surprise|happy ending|returns home|welcomed home|beat the odds|against all odds|new home|forever home)/i;
+const BLOCK = /(die|died|dies|dead|death|deadly|kill|killed|euthan|abuse|abused|cruelt|neglect|hoard|attack|maul|bite|bitten|shot|poison|dump|starv|seiz|stolen|theft|missing|lost dog|lost cat|suffer|\bsick\b|illness|cancer|tumou?r|injur|hit by|tragic|tragedy|warning|alert|rabies|outbreak|virus|\bflu\b|recall|lawsuit|court|charged|arrest|\bban\b|fine[sd]?\b|surrender|overcrowd|put down|euthanasia|dangerous|fear)/i;
+let NEWS = [];
+
+function readCache(key) {
+  try {
+    const raw = localStorage.getItem(key); if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || !Array.isArray(c.items) || !c.items.length) return null;
+    return { items: c.items, age: Date.now() - (c.time || 0) };
+  } catch (e) { return null; }
+}
+function writeCache(key, items) {
+  try { localStorage.setItem(key, JSON.stringify({ time: Date.now(), items })); } catch (e) {}
+}
+function clampText(t, max) {
+  t = String(t).trim(); if (t.length <= max) return t;
+  const cut = t.slice(0, max); const sp = cut.lastIndexOf(" ");
+  return (sp > 0 ? cut.slice(0, sp) : cut) + " …";
+}
+async function fetchText(url) {
+  for (const wrap of PROXIES) {
+    try {
+      const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 8000);
+      const res = await fetch(wrap(url), { signal: ctl.signal }); clearTimeout(to);
+      if (!res.ok) continue;
+      const txt = await res.text(); if (txt && txt.indexOf("<") >= 0) return txt;
+    } catch (e) { /* try next proxy */ }
+  }
+  return null;
+}
+function relTime(s) {
+  const t = Date.parse(s); if (isNaN(t)) return "";
+  const days = Math.floor((Date.now() - t) / 86400000);
+  if (days <= 0) return "today"; if (days === 1) return "yesterday";
+  if (days < 7) return days + " days ago";
+  const w = Math.floor(days / 7); return w === 1 ? "a week ago" : w + " weeks ago";
+}
+function parseFeed(xml, tag) {
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  const items = Array.from(doc.querySelectorAll("item")); const out = [];
+  for (const it of items) {
+    let title = (it.querySelector("title") ? it.querySelector("title").textContent : "").trim();
+    const src = (it.querySelector("source") ? it.querySelector("source").textContent : "").trim();
+    const pub = it.querySelector("pubDate") ? it.querySelector("pubDate").textContent : "";
+    if (!title) continue;
+    if (src && title.endsWith(" - " + src)) title = title.slice(0, -(src.length + 3)).trim();
+    else { const i = title.lastIndexOf(" - "); if (i > 40) title = title.slice(0, i).trim(); }
+    const low = title.toLowerCase();
+    if (!ALLOW.test(low) || BLOCK.test(low)) continue;   // hard filter
+    out.push({ title, source: src || "Google News", when: relTime(pub), tag });
+  }
+  return out;
+}
+async function loadNews(force) {
+  const cached = readCache(NEWS_CACHE_KEY);
+  if (cached) NEWS = cached.items;
+  if (!force && cached && cached.age < NEWS_MAX_AGE_MS) return;
+  const seen = new Set(); const collected = [];
+  for (const Q of NEWS_QUERIES) {
+    const url = "https://news.google.com/rss/search?q=" + encodeURIComponent(Q.q + " when:" + Q.days + "d") + "&hl=en-US&gl=US&ceid=US:en";
+    const xml = await fetchText(url); if (!xml) continue;
+    for (const item of parseFeed(xml, Q.tag)) {
+      const k = item.title.toLowerCase(); if (seen.has(k)) continue; seen.add(k); collected.push(item);
+    }
+  }
+  if (collected.length) { NEWS = collected.slice(0, 24); writeCache(NEWS_CACHE_KEY, NEWS); }
+}
+
+/* =========================================================
    Playlist: interleave section types so nothing repeats
    back-to-back, reshuffle every full loop for variety.
    ========================================================= */
@@ -580,9 +709,9 @@ function seasonalItems() {
 // follows a "why we recommend it" or a question card, so a claim is
 // immediately backed by someone else confirming it. Reviews never
 // follow the payment card; testimonial-after-price reads as a pitch.
-const ORDER = ["welcome","why","health","review","seasonal","didyou","welcome","thisweek","question","review","staff","es","why","welcome","notice","review","update","weather"];
+const ORDER = ["welcome","why","health","review","seasonal","news","didyou","welcome","thisweek","air","question","review","staff","es","adopt","news","why","welcome","notice","review","update","weather"];
 
-let cursors = { health:0, didyou:0, seasonal:0, question:0, why:0, update:0, staff:0, notice:0, thisweek:0, es:0, review:0 };
+let cursors = { health:0, didyou:0, seasonal:0, question:0, why:0, update:0, staff:0, notice:0, thisweek:0, es:0, review:0, news:0 };
 let playIndex = 0;
 
 /* Start somewhere different on every load, and somewhere different
@@ -614,6 +743,8 @@ function nextSlide() {
   const meta = SECTIONS[type];
 
   if (type === "weather") return { type, meta };
+  if (type === "air") return { type, meta };
+  if (type === "adopt") return { type, meta };
 
   if (type === "welcome") {
     if (!ARRIVALS.length) return nextSlide();   // nobody due: skip
@@ -623,6 +754,12 @@ function nextSlide() {
   if (type === "seasonal") {
     const items = seasonalItems();
     const item = pick(items, cursors.seasonal++);
+    return { type, meta, item };
+  }
+
+  if (type === "news") {
+    if (!NEWS.length) return nextSlide();   // nothing safe loaded yet → skip
+    const item = pick(NEWS, cursors.news++);
     return { type, meta, item };
   }
 
@@ -674,6 +811,37 @@ function renderCard(slide) {
         </div>
       </div>`;
   }
+  else if (type === "air") {
+    const a = AIR;
+    const color = a ? a.color : "var(--slate)";
+    inner = `
+      ${eyebrow("Santa Rosa")}
+      <div class="wx-card">
+        <div class="wx-now">
+          <div class="big-temp" style="color:${color}">${a ? a.aqi : "—"}</div>
+          <div class="cond" style="color:${color}; font-weight:700; text-transform:none;">${a ? esc(a.cat) : "Air Quality"}</div>
+          <div style="font-size:calc(1.5*var(--cu)); color:var(--ink-soft); letter-spacing:0.14em; text-transform:uppercase; font-weight:600;">US Air Quality Index</div>
+        </div>
+        <div class="wx-msg">
+          <div class="headline" style="font-size:calc(4.6*var(--cu)); max-width:18ch;">Good day for a walk?</div>
+          <div class="body" style="font-size:calc(3*var(--cu));">${a ? esc(a.msg) : "Checking today's air quality…"}</div>
+        </div>
+      </div>`;
+  }
+  else if (type === "adopt") {
+    inner = `
+      ${eyebrow()}
+      <div class="adopt-card">
+        <div class="adopt-qr">
+          <img src="qr-adopt.png" alt="Scan for adoptable pets" />
+          <div class="scan">Scan to meet them</div>
+        </div>
+        <div class="adopt-msg">
+          <div class="headline" style="font-size:calc(5*var(--cu)); max-width:16ch;">Looking for a new best friend?</div>
+          <div class="body">Meet dogs, cats, and more waiting for homes at the Humane Society of Sonoma County. Point your phone's camera at the code to see who's available now.</div>
+        </div>
+      </div>`;
+  }
   else if (type === "why") {
     inner = `
       ${eyebrow()}
@@ -707,6 +875,12 @@ function renderCard(slide) {
         <div class="q">${esc(item.q)}</div>
         <div class="a">${esc(item.a)}</div>
       </div>`;
+  }
+  else if (type === "news") {
+    inner = `
+      ${eyebrow(item.tag)}
+      <div class="headline">${esc(clampText(item.title, 150))}</div>
+      <div class="body" style="font-size:calc(2.4*var(--cu)); font-weight:600;"><span style="color:var(--accent)">${esc(item.source)}</span>${item.when ? ` · ${esc(item.when)}` : ""}</div>`;
   }
   else {
     const shortClass = item.title && item.title.length < 22 ? " short" : "";
@@ -811,7 +985,7 @@ function advance() {
 async function boot() {
   buildDots();
   renderClock();
-  await Promise.all([loadContentJson(), loadWeather(), loadArrivals()]);
+  await Promise.all([loadContentJson(), loadWeather(), loadNews(), loadAir(), loadArrivals()]);
   randomizeStart();
   advance();
 
@@ -819,7 +993,9 @@ async function boot() {
   setInterval(renderClock, 1000);                 // clock, once a second
   setInterval(loadWeather, 1000 * 60 * 15);       // weather every 15 min
   setInterval(loadArrivals, 1000 * 60 * 5);       // who is due now, every 5 min
+  setInterval(loadAir, 1000 * 60 * 30);           // air quality every 30 min
   setInterval(loadContentJson, 1000 * 60 * 30);   // re-read your edits every 30 min
+  setInterval(loadNews, 1000 * 60 * 60 * 2);      // refresh good news every 2 hrs
 }
 
 /* webfonts change text metrics — re-fit once they've loaded */
