@@ -2,13 +2,20 @@
 
 Run every 30 min during clinic hours (e.g. 7am-6pm), the same way your lab-results agent runs.
 
-## Which appointments to include (allow-list: anything else is skipped)
-Identify by the appointment COLOR in the NectarVet schedule:
-- BLUE or LIGHT BLUE = exam -> include (treat both shades as exam; the agent should
-  match any blue-family color, and skip if the shade is ambiguous or could be another category)
-- RED   = surgery       -> include ONLY if the start/drop-off time is before 10:00 AM
-Never include: rechecks, tech appointments, euthanasia, hospitalized patients,
-or any color/type not listed above.
+## Which appointments to include (allow-list by NectarVet appointment TYPE; anything else is skipped)
+Include only these exact types:
+- Exam-Wellness
+- Exam-Sick/Injured
+- Health Certificate
+- Surgery  -> include ONLY if the start/drop-off time is before 10:00 AM
+
+Color is a secondary check, not the rule: exams are usually blue or light blue, surgery red.
+If the type is on the list but the color looks unexpected, still include it, but note it in the
+run log so we can spot mislabeled appointments. If the type is NOT on the list, skip it even if
+the color is blue or red.
+
+Everything else is skipped, including Recheck, tech appointments, euthanasia, hospitalized
+patients, dental, boarding, and any new or unrecognized type.
 
 ## Safety backstop (required)
 Colors can be wrong. Before creating an event, ALSO skip the appointment if its type, reason
