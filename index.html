@@ -991,6 +991,7 @@ async function boot() {
   renderClock();
   await Promise.all([loadContentJson(), loadWeather(), loadNews(), loadAir(), loadArrivals()]);
   randomizeStart();
+  if (/[?&]demo=welcome\b/.test(location.search)) playIndex = 0;   // preview opens on the welcome card
   advance();
 
   setInterval(advance, SLIDE_MS);                 // rotate cards
