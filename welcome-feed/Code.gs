@@ -7,7 +7,7 @@
  * start to 30 minutes AFTER it. Only the first word of the event title
  * is returned. No owner names, reasons, or times ever leave this script.
  */
-var CALENDAR_NAME = "Lakeside Arrivals";
+var CALENDAR_NAME = "Lakeside Pet Arrivals";
 var BEFORE_MIN = 15;
 var AFTER_MIN = 30;
 var MAX_NAMES = 8;
