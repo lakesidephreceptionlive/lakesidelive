@@ -1,7 +1,7 @@
 /**
  * Lakeside Arrivals feed  (Google Apps Script web app)
  *
- * Reads the Google Calendar named "Lakeside Arrivals" and returns
+ * Reads the Google Calendar named "Lakeside Pet Arrivals" and returns
  *   { "names": ["Bella","Max"] }
  * for pets whose appointment is due now: from 15 minutes BEFORE the
  * start to 30 minutes AFTER it. Only the first word of the event title
