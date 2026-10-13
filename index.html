@@ -744,7 +744,13 @@ function seasonalItems() {
 // follows a "why we recommend it" or a question card, so a claim is
 // immediately backed by someone else confirming it. Reviews never
 // follow the payment card; testimonial-after-price reads as a pitch.
-const ORDER = ["welcome","why","health","review","seasonal","news","didyou","welcome","thisweek","air","question","review","staff","es","adopt","news","why","welcome","notice","review","update","weather"];
+const ORDER = ["why","health","review","seasonal","news","didyou","thisweek","air","question","review","staff","es","adopt","news","why","notice","review","update","weather"];
+
+/* The welcome card is not in ORDER. While someone is due it is the first
+   card of every visit, then every 4th card (one a minute at 15 s a card),
+   so a client sees the pet's name in each short screen visit. */
+const WELCOME_EVERY = 4;
+let sinceWelcome = WELCOME_EVERY;
 
 let cursors = { health:0, didyou:0, seasonal:0, question:0, why:0, update:0, staff:0, notice:0, thisweek:0, es:0, review:0, news:0 };
 let playIndex = 0;
@@ -773,6 +779,15 @@ function randomizeStart() {
 }
 
 function nextSlide() {
+  if (ARRIVALS.length && sinceWelcome >= WELCOME_EVERY) {
+    sinceWelcome = 1;
+    return { type: "welcome", meta: SECTIONS.welcome, item: { names: ARRIVALS.slice() } };
+  }
+  sinceWelcome++;
+  return pickSlide();
+}
+
+function pickSlide() {
   const type = pick(ORDER, playIndex);
   playIndex++;
   const meta = SECTIONS[type];
@@ -782,7 +797,7 @@ function nextSlide() {
   if (type === "adopt") return { type, meta };
 
   if (type === "welcome") {
-    if (!ARRIVALS.length) return nextSlide();   // nobody due: skip
+    if (!ARRIVALS.length) return pickSlide();   // nobody due: skip
     return { type, meta, item: { names: ARRIVALS.slice() } };
   }
 
@@ -793,7 +808,7 @@ function nextSlide() {
   }
 
   if (type === "news") {
-    if (!NEWS.length) return nextSlide();   // nothing safe loaded yet → skip
+    if (!NEWS.length) return pickSlide();   // nothing safe loaded yet → skip
     const item = pick(NEWS, cursors.news++);
     return { type, meta, item };
   }
@@ -801,7 +816,7 @@ function nextSlide() {
   const pool = CONTENT[type];
   if (!pool || !pool.length) {
     // Nothing in this pool — skip it rather than render an empty card.
-    return nextSlide();
+    return pickSlide();
   }
   const item = pick(pool, cursors[type]++);
   return { type, meta, item };
